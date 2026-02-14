@@ -35,6 +35,7 @@ def parse_robinhood_csv(file_content: str) -> List[Dict]:
         try:
             trade = _parse_row(row, col_map)
             if trade:
+                trade["_row_num"] = row_num  # Track CSV row order for sorting
                 trades.append(trade)
         except Exception as e:
             trades.append({"error": f"Row {row_num}: {str(e)}"})
@@ -230,8 +231,8 @@ def group_trades_into_round_trips(trades: List[Dict]) -> List[Dict]:
     - When position goes to zero (or reverses), close the group
     - Uses FIFO (First In, First Out) matching
     """
-    # Sort by date
-    sorted_trades = sorted(trades, key=lambda t: t["trade_date"])
+    # Sort by date ASC, then row_num DESC (reverses Robinhood's newest-first CSV order for same-date trades)
+    sorted_trades = sorted(trades, key=lambda t: (t["trade_date"], -t.get("_row_num", 0)))
 
     # Track open positions per ticker
     # Each entry: {"shares": float, "trades": [list of trade dicts], "group_id": str}
