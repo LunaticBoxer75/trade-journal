@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
+import yfinance as yf
 
 from ..database import get_db
 from ..models import Trade, TradeGroup, Tag, trade_group_tags
@@ -320,6 +321,72 @@ def _recalculate_group_metrics(group_id: str, db: Session):
         group.status = "CLOSED"
     else:
         group.status = "OPEN"
+
+
+@router.get("/groups/{group_id}/chart")
+def get_trade_chart_data(group_id: str, db: Session = Depends(get_db)):
+    """Get OHLCV candle data for a trade group's ticker, plus execution markers."""
+    group = (
+        db.query(TradeGroup)
+        .options(joinedload(TradeGroup.trades))
+        .filter(TradeGroup.id == group_id)
+        .first()
+    )
+    if not group:
+        raise HTTPException(status_code=404, detail="Trade group not found")
+
+    # Determine date range with padding
+    trade_dates = [t.trade_date for t in group.trades if t.trade_date]
+    if not trade_dates:
+        raise HTTPException(status_code=400, detail="No trade dates found")
+
+    min_date = min(trade_dates)
+    max_date = max(trade_dates)
+    start = (min_date - timedelta(days=30)).strftime("%Y-%m-%d")
+    end = (max_date + timedelta(days=15)).strftime("%Y-%m-%d")
+
+    # Fetch data from Yahoo Finance
+    try:
+        ticker = yf.Ticker(group.ticker)
+        df = ticker.history(start=start, end=end, interval="1d")
+        if df.empty:
+            raise HTTPException(status_code=404, detail=f"No price data found for {group.ticker}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch price data: {str(e)}")
+
+    # Convert to candle format
+    candles = []
+    for idx, row in df.iterrows():
+        candles.append({
+            "time": idx.strftime("%Y-%m-%d"),
+            "open": round(float(row["Open"]), 2),
+            "high": round(float(row["High"]), 2),
+            "low": round(float(row["Low"]), 2),
+            "close": round(float(row["Close"]), 2),
+            "volume": int(row["Volume"]) if not pandas_isna(row["Volume"]) else 0,
+        })
+
+    # Build markers from executions
+    markers = []
+    for t in sorted(group.trades, key=lambda x: x.trade_date):
+        markers.append({
+            "time": t.trade_date.strftime("%Y-%m-%d"),
+            "position": "belowBar" if t.action == "BUY" else "aboveBar",
+            "color": "#22c55e" if t.action == "BUY" else "#ef4444",
+            "shape": "arrowUp" if t.action == "BUY" else "arrowDown",
+            "text": "",
+        })
+
+    return {"candles": candles, "markers": markers, "ticker": group.ticker}
+
+
+def pandas_isna(val):
+    """Check if a value is NaN (works without importing pandas directly)."""
+    try:
+        import math
+        return math.isnan(float(val))
+    except (ValueError, TypeError):
+        return False
 
 
 @router.delete("/all")

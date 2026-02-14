@@ -1,47 +1,142 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Star, Save, Trash2, Scissors, Check, X } from 'lucide-react'
-import { getTradeGroup, updateTradeGroup, deleteTradeGroup, splitTradeGroup, getTags, getSetups } from '../services/api'
+import { createChart, ColorType } from 'lightweight-charts'
+import { getTradeGroup, updateTradeGroup, deleteTradeGroup, splitTradeGroup, getTags, getSetups, getTradeChartData } from '../services/api'
 
-function TradingViewChart({ ticker }) {
+function TradeChart({ groupId }) {
   const containerRef = useRef(null)
+  const chartRef = useRef(null)
+  const [chartError, setChartError] = useState(null)
+  const [chartLoading, setChartLoading] = useState(true)
 
   useEffect(() => {
-    if (!containerRef.current || !ticker) return
-    containerRef.current.innerHTML = ''
+    if (!containerRef.current || !groupId) return
 
-    const script = document.createElement('script')
-    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'
-    script.type = 'text/javascript'
-    script.async = true
-    script.innerHTML = JSON.stringify({
-      width: '100%',
-      height: 800,
-      symbol: ticker,
-      interval: 'D',
-      timezone: 'America/New_York',
-      theme: 'dark',
-      style: '1',
-      locale: 'en',
-      allow_symbol_change: true,
-      support_host: 'https://www.tradingview.com',
-      backgroundColor: '#1a1d29',
-      gridColor: '#2a2d3a',
-      hide_volume: false,
-    })
+    let chart = null
 
-    const widgetDiv = document.createElement('div')
-    widgetDiv.className = 'tradingview-widget-container__widget'
-    widgetDiv.style.height = '100%'
-    widgetDiv.style.width = '100%'
+    async function buildChart() {
+      try {
+        setChartLoading(true)
+        setChartError(null)
 
-    containerRef.current.appendChild(widgetDiv)
-    containerRef.current.appendChild(script)
-  }, [ticker])
+        const data = await getTradeChartData(groupId)
+
+        if (!data.candles || data.candles.length === 0) {
+          setChartError('No price data available for this ticker')
+          return
+        }
+
+        // Clear previous chart
+        if (chartRef.current) {
+          chartRef.current.remove()
+          chartRef.current = null
+        }
+        containerRef.current.innerHTML = ''
+
+        chart = createChart(containerRef.current, {
+          width: containerRef.current.clientWidth,
+          height: 600,
+          layout: {
+            background: { type: ColorType.Solid, color: '#1a1d29' },
+            textColor: '#9ca3af',
+          },
+          grid: {
+            vertLines: { color: '#2a2d3a' },
+            horzLines: { color: '#2a2d3a' },
+          },
+          crosshair: {
+            mode: 0,
+          },
+          rightPriceScale: {
+            borderColor: '#2a2d3a',
+          },
+          timeScale: {
+            borderColor: '#2a2d3a',
+            timeVisible: false,
+          },
+        })
+
+        chartRef.current = chart
+
+        // Candlestick series
+        const candleSeries = chart.addCandlestickSeries({
+          upColor: '#22c55e',
+          downColor: '#ef4444',
+          borderUpColor: '#22c55e',
+          borderDownColor: '#ef4444',
+          wickUpColor: '#22c55e',
+          wickDownColor: '#ef4444',
+        })
+
+        candleSeries.setData(data.candles)
+
+        // Volume series
+        const volumeSeries = chart.addHistogramSeries({
+          color: '#4b5563',
+          priceFormat: { type: 'volume' },
+          priceScaleId: '',
+        })
+
+        volumeSeries.priceScale().applyOptions({
+          scaleMargins: { top: 0.8, bottom: 0 },
+        })
+
+        const volumeData = data.candles.map((c) => ({
+          time: c.time,
+          value: c.volume,
+          color: c.close >= c.open ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)',
+        }))
+        volumeSeries.setData(volumeData)
+
+        // Add execution markers
+        if (data.markers && data.markers.length > 0) {
+          candleSeries.setMarkers(data.markers)
+        }
+
+        // Fit content
+        chart.timeScale().fitContent()
+
+        // Resize handler
+        const handleResize = () => {
+          if (chart && containerRef.current) {
+            chart.applyOptions({ width: containerRef.current.clientWidth })
+          }
+        }
+        window.addEventListener('resize', handleResize)
+
+        return () => window.removeEventListener('resize', handleResize)
+      } catch (err) {
+        console.error('Chart error:', err)
+        setChartError(err.message || 'Failed to load chart data')
+      } finally {
+        setChartLoading(false)
+      }
+    }
+
+    buildChart()
+
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.remove()
+        chartRef.current = null
+      }
+    }
+  }, [groupId])
 
   return (
-    <div className="tradingview-widget-container" ref={containerRef} style={{ height: '800px', width: '100%' }}>
-      <div className="tradingview-widget-container__widget" style={{ height: '100%', width: '100%' }}></div>
+    <div>
+      {chartLoading && (
+        <div className="flex items-center justify-center h-[600px] text-dark-muted">
+          Loading chart data...
+        </div>
+      )}
+      {chartError && (
+        <div className="flex items-center justify-center h-[600px] text-dark-muted text-sm">
+          {chartError}
+        </div>
+      )}
+      <div ref={containerRef} style={{ display: chartLoading || chartError ? 'none' : 'block' }} />
     </div>
   )
 }
@@ -263,7 +358,7 @@ export default function TradeDetail() {
         {/* Main Content: Chart */}
         <div className="flex-1 min-w-0">
           <div className="card">
-            <TradingViewChart ticker={trade.ticker} />
+            <TradeChart groupId={groupId} />
           </div>
         </div>
       </div>
