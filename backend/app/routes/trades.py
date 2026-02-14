@@ -324,8 +324,16 @@ def _recalculate_group_metrics(group_id: str, db: Session):
 
 
 @router.get("/groups/{group_id}/chart")
-def get_trade_chart_data(group_id: str, db: Session = Depends(get_db)):
+def get_trade_chart_data(
+    group_id: str,
+    interval: str = Query("1d", description="Chart interval: 1m, 5m, 15m, 30m, 1h, 4h, 1d"),
+    db: Session = Depends(get_db),
+):
     """Get OHLCV candle data for a trade group's ticker, plus execution markers."""
+    VALID_INTERVALS = {"1m", "5m", "15m", "30m", "1h", "4h", "1d"}
+    if interval not in VALID_INTERVALS:
+        raise HTTPException(status_code=400, detail=f"Invalid interval. Must be one of: {', '.join(sorted(VALID_INTERVALS))}")
+
     group = (
         db.query(TradeGroup)
         .options(joinedload(TradeGroup.trades))
@@ -335,49 +343,111 @@ def get_trade_chart_data(group_id: str, db: Session = Depends(get_db)):
     if not group:
         raise HTTPException(status_code=404, detail="Trade group not found")
 
-    # Determine date range with padding
+    # Determine date range with padding based on interval
     trade_dates = [t.trade_date for t in group.trades if t.trade_date]
     if not trade_dates:
         raise HTTPException(status_code=400, detail="No trade dates found")
 
     min_date = min(trade_dates)
     max_date = max(trade_dates)
-    start = (min_date - timedelta(days=30)).strftime("%Y-%m-%d")
-    end = (max_date + timedelta(days=15)).strftime("%Y-%m-%d")
+
+    # Intraday intervals: Yahoo limits to ~60 days, need tighter range
+    is_intraday = interval != "1d"
+    if is_intraday:
+        # For intraday, use smaller padding and limit range
+        # Yahoo Finance limits: 1m=7days, 5m/15m/30m=60days, 1h/4h=730days
+        if interval == "1m":
+            pad_before = timedelta(days=2)
+            pad_after = timedelta(days=1)
+        elif interval in ("5m", "15m", "30m"):
+            pad_before = timedelta(days=5)
+            pad_after = timedelta(days=2)
+        else:  # 1h, 4h
+            pad_before = timedelta(days=10)
+            pad_after = timedelta(days=5)
+    else:
+        pad_before = timedelta(days=30)
+        pad_after = timedelta(days=15)
+
+    start = (min_date - pad_before).strftime("%Y-%m-%d")
+    end = (max_date + pad_after).strftime("%Y-%m-%d")
+
+    # Map interval for yfinance (4h not directly supported, use 1h and aggregate isn't needed — yfinance does support some)
+    # yfinance valid intervals: 1m,2m,5m,15m,30m,60m,90m,1h,1d,5d,1wk,1mo,3mo
+    yf_interval = interval
+    if interval == "4h":
+        yf_interval = "1h"  # fetch 1h and we'll aggregate to 4h
 
     # Fetch data from Yahoo Finance
     try:
         ticker = yf.Ticker(group.ticker)
-        df = ticker.history(start=start, end=end, interval="1d")
+        df = ticker.history(start=start, end=end, interval=yf_interval)
         if df.empty:
-            raise HTTPException(status_code=404, detail=f"No price data found for {group.ticker}")
+            raise HTTPException(status_code=404, detail=f"No price data found for {group.ticker} at interval {interval}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch price data: {str(e)}")
+
+    # Aggregate to 4h if needed
+    if interval == "4h" and not df.empty:
+        df = df.resample("4h").agg({
+            "Open": "first",
+            "High": "max",
+            "Low": "min",
+            "Close": "last",
+            "Volume": "sum",
+        }).dropna(subset=["Open"])
 
     # Convert to candle format
     candles = []
     for idx, row in df.iterrows():
-        candles.append({
-            "time": idx.strftime("%Y-%m-%d"),
-            "open": round(float(row["Open"]), 2),
-            "high": round(float(row["High"]), 2),
-            "low": round(float(row["Low"]), 2),
-            "close": round(float(row["Close"]), 2),
-            "volume": int(row["Volume"]) if not pandas_isna(row["Volume"]) else 0,
-        })
+        if is_intraday:
+            # For intraday, use Unix timestamp
+            ts = int(idx.timestamp())
+            candles.append({
+                "time": ts,
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "close": round(float(row["Close"]), 2),
+                "volume": int(row["Volume"]) if not pandas_isna(row["Volume"]) else 0,
+            })
+        else:
+            candles.append({
+                "time": idx.strftime("%Y-%m-%d"),
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "close": round(float(row["Close"]), 2),
+                "volume": int(row["Volume"]) if not pandas_isna(row["Volume"]) else 0,
+            })
 
     # Build markers from executions
     markers = []
     for t in sorted(group.trades, key=lambda x: x.trade_date):
-        markers.append({
-            "time": t.trade_date.strftime("%Y-%m-%d"),
-            "position": "belowBar" if t.action == "BUY" else "aboveBar",
-            "color": "#22c55e" if t.action == "BUY" else "#ef4444",
-            "shape": "arrowUp" if t.action == "BUY" else "arrowDown",
-            "text": "",
-        })
+        if is_intraday:
+            # For intraday, find the closest candle timestamp
+            trade_ts = int(t.trade_date.timestamp())
+            # Snap to nearest candle time
+            closest_time = trade_ts
+            if candles:
+                closest_time = min(candles, key=lambda c: abs(c["time"] - trade_ts))["time"]
+            markers.append({
+                "time": closest_time,
+                "position": "belowBar" if t.action == "BUY" else "aboveBar",
+                "color": "#22c55e" if t.action == "BUY" else "#ef4444",
+                "shape": "arrowUp" if t.action == "BUY" else "arrowDown",
+                "text": "",
+            })
+        else:
+            markers.append({
+                "time": t.trade_date.strftime("%Y-%m-%d"),
+                "position": "belowBar" if t.action == "BUY" else "aboveBar",
+                "color": "#22c55e" if t.action == "BUY" else "#ef4444",
+                "shape": "arrowUp" if t.action == "BUY" else "arrowDown",
+                "text": "",
+            })
 
-    return {"candles": candles, "markers": markers, "ticker": group.ticker}
+    return {"candles": candles, "markers": markers, "ticker": group.ticker, "interval": interval}
 
 
 def pandas_isna(val):

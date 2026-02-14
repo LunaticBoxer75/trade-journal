@@ -4,11 +4,22 @@ import { ArrowLeft, Star, Save, Trash2, Scissors, Check, X } from 'lucide-react'
 import { createChart, ColorType } from 'lightweight-charts'
 import { getTradeGroup, updateTradeGroup, deleteTradeGroup, splitTradeGroup, getTags, getSetups, getTradeChartData } from '../services/api'
 
+const TIMEFRAMES = [
+  { label: '1m', value: '1m' },
+  { label: '5m', value: '5m' },
+  { label: '15m', value: '15m' },
+  { label: '30m', value: '30m' },
+  { label: '1H', value: '1h' },
+  { label: '4H', value: '4h' },
+  { label: '1D', value: '1d' },
+]
+
 function TradeChart({ groupId }) {
   const containerRef = useRef(null)
   const chartRef = useRef(null)
   const [chartError, setChartError] = useState(null)
   const [chartLoading, setChartLoading] = useState(true)
+  const [interval, setInterval] = useState('1d')
 
   useEffect(() => {
     if (!containerRef.current || !groupId) return
@@ -20,7 +31,7 @@ function TradeChart({ groupId }) {
         setChartLoading(true)
         setChartError(null)
 
-        const data = await getTradeChartData(groupId)
+        const data = await getTradeChartData(groupId, interval)
 
         if (!data.candles || data.candles.length === 0) {
           setChartError('No price data available for this ticker')
@@ -53,7 +64,8 @@ function TradeChart({ groupId }) {
           },
           timeScale: {
             borderColor: '#2a2d3a',
-            timeVisible: false,
+            timeVisible: interval !== '1d',
+            secondsVisible: false,
           },
         })
 
@@ -122,10 +134,27 @@ function TradeChart({ groupId }) {
         chartRef.current = null
       }
     }
-  }, [groupId])
+  }, [groupId, interval])
 
   return (
     <div>
+      {/* Timeframe selector */}
+      <div className="flex items-center gap-1 mb-3">
+        {TIMEFRAMES.map((tf) => (
+          <button
+            key={tf.value}
+            onClick={() => setInterval(tf.value)}
+            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+              interval === tf.value
+                ? 'bg-blue-600 text-white'
+                : 'bg-dark-border/50 text-dark-muted hover:text-white hover:bg-dark-border'
+            }`}
+          >
+            {tf.label}
+          </button>
+        ))}
+      </div>
+
       {chartLoading && (
         <div className="flex items-center justify-center h-[600px] text-dark-muted">
           Loading chart data...

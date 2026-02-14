@@ -85,8 +85,8 @@ export const splitTradeGroup = (groupId, tradeIds) =>
     body: JSON.stringify(tradeIds),
   });
 
-export const getTradeChartData = (groupId) =>
-  fetchJSON(`/trades/groups/${groupId}/chart`);
+export const getTradeChartData = (groupId, interval = '1d') =>
+  fetchJSON(`/trades/groups/${groupId}/chart?interval=${interval}`);
 
 export const getUniqueTickers = () =>
   fetchJSON('/trades/tickers');
