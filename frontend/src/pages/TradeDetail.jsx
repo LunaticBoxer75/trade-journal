@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Star, Save, Trash2, Scissors, Check, X } from 'lucide-react'
+import { ArrowLeft, Star, Save, Trash2, Scissors, Check, X, Plus } from 'lucide-react'
 import { createChart, ColorType } from 'lightweight-charts'
-import { getTradeGroup, updateTradeGroup, deleteTradeGroup, splitTradeGroup, getTags, getSetups, getTradeChartData, updateTradeDateTime } from '../services/api'
+import { getTradeGroup, updateTradeGroup, deleteTradeGroup, splitTradeGroup, getTags, getSetups, getTradeChartData, updateTradeDateTime, addExecution } from '../services/api'
 
 const TIMEFRAMES = [
   { label: '5m', value: '5m' },
@@ -244,6 +244,9 @@ export default function TradeDetail() {
   const [splitMode, setSplitMode] = useState(false)
   const [selectedTradeIds, setSelectedTradeIds] = useState(new Set())
   const [splitting, setSplitting] = useState(false)
+  const [addingExecution, setAddingExecution] = useState(false)
+  const [newExec, setNewExec] = useState({ action: 'BUY', quantity: '', price: '', trade_date: '' })
+  const [addingExecSaving, setAddingExecSaving] = useState(false)
   const [editForm, setEditForm] = useState({
     notes: '',
     mistakes: '',
@@ -314,6 +317,25 @@ export default function TradeDetail() {
   }
 
   function cancelSplit() { setSplitMode(false); setSelectedTradeIds(new Set()) }
+
+  async function handleAddExecution() {
+    if (!newExec.quantity || !newExec.price || !newExec.trade_date) {
+      alert('Please fill in all fields'); return
+    }
+    try {
+      setAddingExecSaving(true)
+      await addExecution(groupId, {
+        action: newExec.action,
+        quantity: parseFloat(newExec.quantity),
+        price: parseFloat(newExec.price),
+        trade_date: new Date(newExec.trade_date).toISOString(),
+      })
+      setAddingExecution(false)
+      setNewExec({ action: 'BUY', quantity: '', price: '', trade_date: '' })
+      await loadData()
+    } catch (err) { alert('Failed to add execution: ' + err.message) }
+    finally { setAddingExecSaving(false) }
+  }
 
   function toggleTag(tagId) {
     setEditForm((prev) => ({
@@ -460,10 +482,16 @@ export default function TradeDetail() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Executions</h3>
           {!splitMode ? (
-            <button onClick={() => setSplitMode(true)} className="btn-secondary flex items-center gap-2 text-sm"
-              disabled={!trade.trades || trade.trades.length < 2}>
-              <Scissors size={14} /> Split Trade
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setAddingExecution(true)} className="btn-primary flex items-center gap-2 text-sm"
+                disabled={addingExecution}>
+                <Plus size={14} /> Add Execution
+              </button>
+              <button onClick={() => setSplitMode(true)} className="btn-secondary flex items-center gap-2 text-sm"
+                disabled={!trade.trades || trade.trades.length < 2}>
+                <Scissors size={14} /> Split Trade
+              </button>
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <span className="text-sm text-yellow-400">Select executions to move ({selectedTradeIds.size} selected)</span>
@@ -479,6 +507,43 @@ export default function TradeDetail() {
         {splitMode && (
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-4 text-sm text-yellow-300">
             Check the executions you want to move to a new trade group.
+          </div>
+        )}
+        {addingExecution && (
+          <div className="bg-dark-card border border-dark-border rounded-lg p-4 mb-4">
+            <div className="grid grid-cols-5 gap-3 items-end">
+              <div>
+                <label className="text-xs text-dark-muted mb-1 block">Action</label>
+                <select className="select w-full text-sm" value={newExec.action}
+                  onChange={(e) => setNewExec({ ...newExec, action: e.target.value })}>
+                  <option value="BUY">BUY</option>
+                  <option value="SELL">SELL</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-dark-muted mb-1 block">Date & Time</label>
+                <input type="datetime-local" className="bg-dark-card border border-dark-border rounded px-2 py-1.5 text-sm text-white w-full focus:outline-none focus:border-blue-500"
+                  value={newExec.trade_date} onChange={(e) => setNewExec({ ...newExec, trade_date: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs text-dark-muted mb-1 block">Quantity</label>
+                <input type="number" step="any" className="bg-dark-card border border-dark-border rounded px-2 py-1.5 text-sm text-white w-full focus:outline-none focus:border-blue-500"
+                  placeholder="100" value={newExec.quantity} onChange={(e) => setNewExec({ ...newExec, quantity: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs text-dark-muted mb-1 block">Price</label>
+                <input type="number" step="any" className="bg-dark-card border border-dark-border rounded px-2 py-1.5 text-sm text-white w-full focus:outline-none focus:border-blue-500"
+                  placeholder="52.50" value={newExec.price} onChange={(e) => setNewExec({ ...newExec, price: e.target.value })} />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleAddExecution} disabled={addingExecSaving} className="btn-primary text-sm px-3 py-1.5">
+                  {addingExecSaving ? 'Adding...' : 'Add'}
+                </button>
+                <button onClick={() => setAddingExecution(false)} className="btn-secondary text-sm px-3 py-1.5">
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
         <table className="w-full">

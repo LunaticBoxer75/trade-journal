@@ -94,6 +94,12 @@ export const updateTradeDateTime = (tradeId, tradeDate) =>
     body: JSON.stringify({ trade_date: tradeDate }),
   });
 
+export const addExecution = (groupId, data) =>
+  fetchJSON(`/trades/groups/${groupId}/executions`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
 export const getUniqueTickers = () =>
   fetchJSON('/trades/tickers');
 

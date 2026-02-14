@@ -224,15 +224,49 @@ def delete_trade_group(group_id: str, db: Session = Depends(get_db)):
     return {"message": "Trade group deleted"}
 
 
-@router.put("/executions/{trade_id}")
-def update_trade_execution(trade_id: int, db: Session = Depends(get_db)):
-    """Update an individual trade execution's date/time."""
-    import json
-    from starlette.requests import Request
-    trade = db.query(Trade).filter(Trade.id == trade_id).first()
-    if not trade:
-        raise HTTPException(status_code=404, detail="Trade not found")
-    return trade
+@router.post("/groups/{group_id}/executions")
+def add_execution(group_id: str, body: dict, db: Session = Depends(get_db)):
+    """Add a new execution to a trade group."""
+    group = db.query(TradeGroup).filter(TradeGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Trade group not found")
+
+    # Validate required fields
+    for field in ["action", "quantity", "price", "trade_date"]:
+        if field not in body or not body[field]:
+            raise HTTPException(status_code=400, detail=f"{field} is required")
+
+    action = body["action"].upper()
+    if action not in ("BUY", "SELL"):
+        raise HTTPException(status_code=400, detail="action must be BUY or SELL")
+
+    try:
+        trade_date = datetime.fromisoformat(body["trade_date"])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format")
+
+    quantity = float(body["quantity"])
+    price = float(body["price"])
+
+    trade = Trade(
+        ticker=group.ticker,
+        action=action,
+        quantity=quantity,
+        price=price,
+        total_amount=round(quantity * price, 2),
+        trade_date=trade_date,
+        fees=float(body.get("fees", 0)),
+        side=group.side,
+        status=group.status,
+        group_id=group_id,
+    )
+    db.add(trade)
+    db.flush()
+
+    _recalculate_group_metrics(group_id, db)
+    db.commit()
+
+    return {"message": "Execution added", "trade_id": trade.id}
 
 
 @router.put("/executions/{trade_id}/datetime")
