@@ -15,7 +15,8 @@ function TradingViewChart({ ticker }) {
     script.type = 'text/javascript'
     script.async = true
     script.innerHTML = JSON.stringify({
-      autosize: true,
+      width: '100%',
+      height: 800,
       symbol: ticker,
       interval: 'D',
       timezone: 'America/New_York',
