@@ -190,6 +190,14 @@ def update_trade_group(
         group.rating = update.rating
     if update.setup_id is not None:
         group.setup_id = update.setup_id
+    if update.stop_loss is not None:
+        group.stop_loss = update.stop_loss
+        # Auto-calculate R-multiple when stop_loss is set
+        if group.entry_price and group.pnl is not None and group.quantity:
+            risk_per_share = abs(group.entry_price - update.stop_loss)
+            total_risk = risk_per_share * group.quantity
+            if total_risk > 0:
+                group.r_multiple = round(group.pnl / total_risk, 2)
 
     # Update tags
     if update.tag_ids is not None:

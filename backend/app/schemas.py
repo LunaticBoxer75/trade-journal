@@ -71,6 +71,7 @@ class TradeGroupUpdate(BaseModel):
     mistakes: Optional[str] = None
     rating: Optional[int] = None
     setup_id: Optional[int] = None
+    stop_loss: Optional[float] = None
     tag_ids: Optional[List[int]] = None
 
 class TradeGroupResponse(BaseModel):
@@ -85,6 +86,7 @@ class TradeGroupResponse(BaseModel):
     pnl: Optional[float] = None
     pnl_percent: Optional[float] = None
     r_multiple: Optional[float] = None
+    stop_loss: Optional[float] = None
     status: str
     setup_id: Optional[int] = None
     notes: Optional[str] = None
@@ -108,6 +110,8 @@ class TradeGroupListResponse(BaseModel):
     quantity: Optional[float] = None
     pnl: Optional[float] = None
     pnl_percent: Optional[float] = None
+    r_multiple: Optional[float] = None
+    stop_loss: Optional[float] = None
     status: str
     rating: Optional[int] = None
     tags: List[TagResponse] = []

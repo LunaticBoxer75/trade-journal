@@ -247,11 +247,14 @@ export default function TradeDetail() {
   const [addingExecution, setAddingExecution] = useState(false)
   const [newExec, setNewExec] = useState({ action: 'BUY', quantity: '', price: '', trade_date: '' })
   const [addingExecSaving, setAddingExecSaving] = useState(false)
+  const [hidePnl, setHidePnl] = useState(true)
+  const [pnlMode, setPnlMode] = useState('$') // '$', '%', 'R'
   const [editForm, setEditForm] = useState({
     notes: '',
     mistakes: '',
     rating: 0,
     setup_id: null,
+    stop_loss: null,
     tag_ids: [],
   })
 
@@ -270,6 +273,7 @@ export default function TradeDetail() {
         mistakes: tradeData.mistakes || '',
         rating: tradeData.rating || 0,
         setup_id: tradeData.setup_id,
+        stop_loss: tradeData.stop_loss,
         tag_ids: tradeData.tags?.map((t) => t.id) || [],
       })
     } catch (err) {
@@ -350,6 +354,19 @@ export default function TradeDetail() {
   const formatDate = (d) => d ? new Date(d).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—'
   const formatCurrency = (v) => v != null ? `$${v.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'
 
+  function formatPnl(trade) {
+    if (hidePnl) return '••••••'
+    if (pnlMode === '%') return trade.pnl_percent != null ? `${trade.pnl_percent.toFixed(2)}%` : '—'
+    if (pnlMode === 'R') return trade.r_multiple != null ? `${trade.r_multiple}R` : '—'
+    return formatCurrency(trade.pnl)
+  }
+
+  function getPnlClass(trade) {
+    if (hidePnl) return 'text-dark-muted'
+    const val = pnlMode === '%' ? trade.pnl_percent : pnlMode === 'R' ? trade.r_multiple : trade.pnl
+    return val > 0 ? 'pnl-positive' : val < 0 ? 'pnl-negative' : 'text-white'
+  }
+
   return (
     <div>
       {/* Header */}
@@ -371,9 +388,34 @@ export default function TradeDetail() {
             {formatDate(trade.entry_date)} → {formatDate(trade.exit_date)}
           </p>
         </div>
-        <button onClick={handleDelete} className="btn-danger flex items-center gap-2">
-          <Trash2 size={16} /> Delete
-        </button>
+        <div className="flex items-center gap-3">
+          {/* PnL mode toggle */}
+          <div className="flex items-center border border-dark-border rounded overflow-hidden">
+            {['$', '%', 'R'].map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setPnlMode(mode)}
+                className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  pnlMode === mode ? 'bg-blue-600 text-white' : 'text-dark-muted hover:text-white'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+          {/* Hide PnL toggle */}
+          <button
+            onClick={() => setHidePnl(!hidePnl)}
+            className={`text-xs px-3 py-1.5 rounded border transition-colors ${
+              hidePnl ? 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10' : 'border-dark-border text-dark-muted hover:text-white'
+            }`}
+          >
+            {hidePnl ? 'Show P&L' : 'Hide P&L'}
+          </button>
+          <button onClick={handleDelete} className="btn-danger flex items-center gap-2">
+            <Trash2 size={16} /> Delete
+          </button>
+        </div>
       </div>
 
       {/* Tradezella-style layout: Stats sidebar + Chart main */}
@@ -384,8 +426,8 @@ export default function TradeDetail() {
             {/* Net P&L - prominent */}
             <div className="pb-4 border-b border-dark-border">
               <div className="text-xs text-dark-muted uppercase tracking-wide mb-1">Net P&L</div>
-              <div className={`text-3xl font-bold ${trade.pnl > 0 ? 'pnl-positive' : trade.pnl < 0 ? 'pnl-negative' : 'text-white'}`}>
-                {formatCurrency(trade.pnl)}
+              <div className={`text-3xl font-bold ${getPnlClass(trade)}`}>
+                {formatPnl(trade)}
               </div>
             </div>
 
@@ -409,13 +451,31 @@ export default function TradeDetail() {
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-dark-muted">P&L %</span>
-                <span className={`text-sm font-medium ${trade.pnl_percent > 0 ? 'pnl-positive' : trade.pnl_percent < 0 ? 'pnl-negative' : ''}`}>
-                  {trade.pnl_percent != null ? `${trade.pnl_percent.toFixed(2)}%` : '—'}
+                <span className={`text-sm font-medium ${hidePnl ? 'text-dark-muted' : trade.pnl_percent > 0 ? 'pnl-positive' : trade.pnl_percent < 0 ? 'pnl-negative' : ''}`}>
+                  {hidePnl ? '••••' : trade.pnl_percent != null ? `${trade.pnl_percent.toFixed(2)}%` : '—'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-dark-muted">R-Multiple</span>
-                <span className="text-sm font-medium text-white">{trade.r_multiple ?? '—'}</span>
+                <span className="text-sm font-medium text-white">{hidePnl ? '••••' : trade.r_multiple ?? '—'}</span>
+              </div>
+
+              {/* Stop Loss */}
+              <div className="border-t border-dark-border pt-3">
+                <div className="text-xs text-dark-muted uppercase tracking-wide mb-2">Stop Loss</div>
+                <input
+                  type="number"
+                  step="any"
+                  className="bg-dark-card border border-dark-border rounded px-2 py-1.5 text-sm text-white w-full focus:outline-none focus:border-blue-500"
+                  placeholder="Enter stop loss price"
+                  value={editForm.stop_loss || ''}
+                  onChange={(e) => setEditForm({ ...editForm, stop_loss: e.target.value ? parseFloat(e.target.value) : null })}
+                />
+                {editForm.stop_loss && trade.entry_price && (
+                  <div className="text-xs text-dark-muted mt-1">
+                    Risk/share: ${Math.abs(trade.entry_price - editForm.stop_loss).toFixed(2)}
+                  </div>
+                )}
               </div>
 
               {/* Divider */}

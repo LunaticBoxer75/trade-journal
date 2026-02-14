@@ -1,4 +1,4 @@
-from sqlalchemy import (
+hfrom sqlalchemy import (
     Column, Integer, String, Float, DateTime, Date, Text, ForeignKey, Table, Boolean
 )
 from sqlalchemy.orm import relationship
@@ -48,6 +48,7 @@ class TradeGroup(Base):
     pnl = Column(Float)
     pnl_percent = Column(Float)
     r_multiple = Column(Float)
+    stop_loss = Column(Float)
     status = Column(String, default="OPEN")  # OPEN, CLOSED
     setup_id = Column(Integer, ForeignKey("setups.id"), nullable=True)
     notes = Column(Text)
