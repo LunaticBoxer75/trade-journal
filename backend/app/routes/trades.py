@@ -38,39 +38,34 @@ async def import_trades(file: UploadFile = File(...), db: Session = Depends(get_
     # Group into round trips
     groups = group_trades_into_round_trips(valid_trades)
 
-    # Build a set of existing trades for duplicate detection
-    # Key: (ticker, action, quantity, price, trade_date)
-    existing_trades = db.query(
-        Trade.ticker, Trade.action, Trade.quantity, Trade.price, Trade.trade_date
-    ).all()
-    existing_keys = set()
-    for et in existing_trades:
-        existing_keys.add((et.ticker, et.action, et.quantity, et.price, et.trade_date))
+    # Duplicate detection: per ticker, find the latest existing trade date.
+    # Only import trades newer than that date. If no existing trades for a ticker, import all.
+    from sqlalchemy import func
+    latest_dates = dict(
+        db.query(Trade.ticker, func.max(Trade.trade_date))
+        .group_by(Trade.ticker)
+        .all()
+    )
 
-    # Save to database, skipping duplicates
+    # Save to database, skipping trades at or before the latest existing date per ticker
     trades_imported = 0
     trades_skipped = 0
     groups_created = 0
 
     for group_data in groups:
-        # Check which trades in this group are new (not duplicates)
+        ticker = group_data["ticker"]
+        cutoff = latest_dates.get(ticker)
+
+        # Filter to only trades newer than what we already have
         new_trades = []
         for trade_data in group_data["trades"]:
-            key = (
-                trade_data["ticker"],
-                trade_data["action"],
-                trade_data["quantity"],
-                trade_data["price"],
-                trade_data["trade_date"],
-            )
-            if key in existing_keys:
+            if cutoff and trade_data["trade_date"] <= cutoff:
                 trades_skipped += 1
             else:
                 new_trades.append(trade_data)
-                existing_keys.add(key)  # Prevent intra-file duplicates too
 
         if not new_trades:
-            continue  # All trades in this group are duplicates, skip entirely
+            continue  # All trades already exist
 
         # Create TradeGroup
         trade_group = TradeGroup(
@@ -111,7 +106,7 @@ async def import_trades(file: UploadFile = File(...), db: Session = Depends(get_
     return ImportResult(
         trades_imported=trades_imported,
         groups_created=groups_created,
-        errors=errors if not trades_skipped else errors + [f"{trades_skipped} duplicate trades skipped"],
+        errors=errors if not trades_skipped else errors + [f"{trades_skipped} existing trades skipped"],
     )
 
 
