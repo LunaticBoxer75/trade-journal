@@ -330,7 +330,7 @@ def get_trade_chart_data(
     db: Session = Depends(get_db),
 ):
     """Get OHLCV candle data for a trade group's ticker, plus execution markers."""
-    VALID_INTERVALS = {"1m", "5m", "15m", "30m", "1h", "4h", "1d"}
+    VALID_INTERVALS = {"5m", "15m", "30m", "1h", "4h", "1d"}
     if interval not in VALID_INTERVALS:
         raise HTTPException(status_code=400, detail=f"Invalid interval. Must be one of: {', '.join(sorted(VALID_INTERVALS))}")
 

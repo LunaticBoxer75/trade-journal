@@ -5,7 +5,6 @@ import { createChart, ColorType } from 'lightweight-charts'
 import { getTradeGroup, updateTradeGroup, deleteTradeGroup, splitTradeGroup, getTags, getSetups, getTradeChartData } from '../services/api'
 
 const TIMEFRAMES = [
-  { label: '1m', value: '1m' },
   { label: '5m', value: '5m' },
   { label: '15m', value: '15m' },
   { label: '30m', value: '30m' },
@@ -155,17 +154,19 @@ function TradeChart({ groupId }) {
         ))}
       </div>
 
-      {chartLoading && (
-        <div className="flex items-center justify-center h-[600px] text-dark-muted">
-          Loading chart data...
-        </div>
-      )}
-      {chartError && (
-        <div className="flex items-center justify-center h-[600px] text-dark-muted text-sm">
-          {chartError}
-        </div>
-      )}
-      <div ref={containerRef} style={{ display: chartLoading || chartError ? 'none' : 'block' }} />
+      <div className="relative" style={{ minHeight: '600px' }}>
+        {chartLoading && (
+          <div className="absolute inset-0 flex items-center justify-center text-dark-muted z-10">
+            Loading chart data...
+          </div>
+        )}
+        {chartError && (
+          <div className="absolute inset-0 flex items-center justify-center text-dark-muted text-sm z-10">
+            {chartError}
+          </div>
+        )}
+        <div ref={containerRef} />
+      </div>
     </div>
   )
 }
