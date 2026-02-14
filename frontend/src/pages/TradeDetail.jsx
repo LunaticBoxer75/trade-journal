@@ -41,7 +41,7 @@ function TradingViewChart({ ticker }) {
   }, [ticker])
 
   return (
-    <div className="tradingview-widget-container" ref={containerRef} style={{ height: '500px', width: '100%' }}>
+    <div className="tradingview-widget-container" ref={containerRef} style={{ height: '700px', width: '100%' }}>
       <div className="tradingview-widget-container__widget" style={{ height: '100%', width: '100%' }}></div>
     </div>
   )
@@ -238,7 +238,9 @@ export default function TradeDetail() {
       {/* TradingView Chart */}
       <div className="card mb-8">
         <h3 className="text-lg font-semibold mb-4">Chart — {trade.ticker}</h3>
-        <TradingViewChart ticker={trade.ticker} />
+        <div className="max-w-3xl mx-auto">
+          <TradingViewChart ticker={trade.ticker} />
+        </div>
       </div>
 
       {/* Individual Trades / Executions */}
