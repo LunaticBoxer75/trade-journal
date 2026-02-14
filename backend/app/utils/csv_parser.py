@@ -178,19 +178,32 @@ def _extract_ticker_from_description(description: str) -> str:
 
 
 def _parse_date(date_str: str) -> datetime:
-    """Parse various date formats."""
+    """Parse various date formats from broker CSVs."""
+    # Strip whitespace
+    date_str = date_str.strip()
+
+    # Formats with time first (most specific)
     formats = [
-        "%m/%d/%Y",
-        "%Y-%m-%d",
-        "%m-%d-%Y",
-        "%m/%d/%y",
-        "%Y-%m-%dT%H:%M:%S",
-        "%m/%d/%Y %H:%M:%S",
-        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S.%f%z",   # ISO with microseconds + tz
+        "%Y-%m-%dT%H:%M:%S%z",       # ISO with tz
+        "%Y-%m-%dT%H:%M:%S.%f",      # ISO with microseconds
+        "%Y-%m-%dT%H:%M:%S",         # ISO basic
+        "%m/%d/%Y %I:%M:%S %p",      # 01/15/2025 02:30:45 PM
+        "%m/%d/%Y %H:%M:%S",         # 01/15/2025 14:30:45
+        "%m/%d/%Y %I:%M %p",         # 01/15/2025 02:30 PM
+        "%m/%d/%Y %H:%M",            # 01/15/2025 14:30
+        "%Y-%m-%d %H:%M:%S.%f",      # 2025-01-15 14:30:45.123
+        "%Y-%m-%d %H:%M:%S",         # 2025-01-15 14:30:45
+        "%Y-%m-%d %H:%M",            # 2025-01-15 14:30
+        "%m/%d/%Y",                   # 01/15/2025 (date only)
+        "%Y-%m-%d",                   # 2025-01-15 (date only)
+        "%m-%d-%Y",                   # 01-15-2025
+        "%m/%d/%y",                   # 01/15/25
     ]
     for fmt in formats:
         try:
-            return datetime.strptime(date_str, fmt)
+            dt = datetime.strptime(date_str, fmt)
+            return dt.replace(tzinfo=None) if dt.tzinfo else dt
         except ValueError:
             continue
     raise ValueError(f"Cannot parse date: {date_str}")

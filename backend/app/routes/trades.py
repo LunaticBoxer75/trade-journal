@@ -38,11 +38,40 @@ async def import_trades(file: UploadFile = File(...), db: Session = Depends(get_
     # Group into round trips
     groups = group_trades_into_round_trips(valid_trades)
 
-    # Save to database
+    # Build a set of existing trades for duplicate detection
+    # Key: (ticker, action, quantity, price, trade_date)
+    existing_trades = db.query(
+        Trade.ticker, Trade.action, Trade.quantity, Trade.price, Trade.trade_date
+    ).all()
+    existing_keys = set()
+    for et in existing_trades:
+        existing_keys.add((et.ticker, et.action, et.quantity, et.price, et.trade_date))
+
+    # Save to database, skipping duplicates
     trades_imported = 0
+    trades_skipped = 0
     groups_created = 0
 
     for group_data in groups:
+        # Check which trades in this group are new (not duplicates)
+        new_trades = []
+        for trade_data in group_data["trades"]:
+            key = (
+                trade_data["ticker"],
+                trade_data["action"],
+                trade_data["quantity"],
+                trade_data["price"],
+                trade_data["trade_date"],
+            )
+            if key in existing_keys:
+                trades_skipped += 1
+            else:
+                new_trades.append(trade_data)
+                existing_keys.add(key)  # Prevent intra-file duplicates too
+
+        if not new_trades:
+            continue  # All trades in this group are duplicates, skip entirely
+
         # Create TradeGroup
         trade_group = TradeGroup(
             id=group_data["group_id"],
@@ -60,8 +89,8 @@ async def import_trades(file: UploadFile = File(...), db: Session = Depends(get_
         db.add(trade_group)
         groups_created += 1
 
-        # Create individual trades
-        for trade_data in group_data["trades"]:
+        # Create individual trades (only non-duplicates)
+        for trade_data in new_trades:
             trade = Trade(
                 ticker=trade_data["ticker"],
                 action=trade_data["action"],
@@ -82,7 +111,7 @@ async def import_trades(file: UploadFile = File(...), db: Session = Depends(get_
     return ImportResult(
         trades_imported=trades_imported,
         groups_created=groups_created,
-        errors=errors,
+        errors=errors if not trades_skipped else errors + [f"{trades_skipped} duplicate trades skipped"],
     )
 
 
