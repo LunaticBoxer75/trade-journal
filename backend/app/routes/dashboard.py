@@ -59,6 +59,28 @@ def get_dashboard_stats(
     best_trade = max(pnl_values) if pnl_values else 0
     worst_trade = min(pnl_values) if pnl_values else 0
 
+    # Percentage-based stats
+    pct_values = [g.pnl_percent for g in groups if g.pnl_percent is not None]
+    winning_pcts = [g.pnl_percent for g in winning if g.pnl_percent is not None]
+    losing_pcts = [abs(g.pnl_percent) for g in losing if g.pnl_percent is not None]
+
+    total_pnl_pct = sum(pct_values) if pct_values else 0
+    avg_win_pct = (sum(winning_pcts) / len(winning_pcts)) if winning_pcts else 0
+    avg_loss_pct = (sum(losing_pcts) / len(losing_pcts)) if losing_pcts else 0
+    best_trade_pct = max(pct_values) if pct_values else 0
+    worst_trade_pct = min(pct_values) if pct_values else 0
+
+    # R-based stats
+    r_values = [g.r_multiple for g in groups if g.r_multiple is not None]
+    winning_rs = [g.r_multiple for g in winning if g.r_multiple is not None]
+    losing_rs = [abs(g.r_multiple) for g in losing if g.r_multiple is not None]
+
+    total_r = sum(r_values) if r_values else 0
+    avg_win_r = (sum(winning_rs) / len(winning_rs)) if winning_rs else 0
+    avg_loss_r = (sum(losing_rs) / len(losing_rs)) if losing_rs else 0
+    best_trade_r = max(r_values) if r_values else 0
+    worst_trade_r = min(r_values) if r_values else 0
+
     # Get latest account balance
     latest_snapshot = (
         db.query(AccountSnapshot)
@@ -78,6 +100,18 @@ def get_dashboard_stats(
         current_balance=latest_snapshot.balance if latest_snapshot else None,
         total_winning_trades=len(winning),
         total_losing_trades=len(losing),
+        # Percentage
+        total_pnl_pct=round(total_pnl_pct, 2),
+        avg_win_pct=round(avg_win_pct, 2),
+        avg_loss_pct=round(avg_loss_pct, 2),
+        best_trade_pct=round(best_trade_pct, 2),
+        worst_trade_pct=round(worst_trade_pct, 2),
+        # R-multiple
+        total_r=round(total_r, 2),
+        avg_win_r=round(avg_win_r, 2),
+        avg_loss_r=round(avg_loss_r, 2),
+        best_trade_r=round(best_trade_r, 2),
+        worst_trade_r=round(worst_trade_r, 2),
     )
 
 

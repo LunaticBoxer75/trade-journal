@@ -172,6 +172,18 @@ class DashboardStats(BaseModel):
     current_balance: Optional[float] = None
     total_winning_trades: int
     total_losing_trades: int
+    # Percentage-based
+    total_pnl_pct: float = 0
+    avg_win_pct: float = 0
+    avg_loss_pct: float = 0
+    best_trade_pct: float = 0
+    worst_trade_pct: float = 0
+    # R-based
+    total_r: float = 0
+    avg_win_r: float = 0
+    avg_loss_r: float = 0
+    best_trade_r: float = 0
+    worst_trade_r: float = 0
 
 
 # --- Import ---

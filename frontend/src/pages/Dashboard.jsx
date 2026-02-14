@@ -43,6 +43,7 @@ function CustomTooltip({ active, payload, label }) {
 }
 
 export default function Dashboard({ dateFrom, dateTo }) {
+  const [pnlMode, setPnlMode] = useState('$') // '$', '%', 'R'
   const [stats, setStats] = useState(null)
   const [equityCurve, setEquityCurve] = useState([])
   const [drawdown, setDrawdown] = useState(null)
@@ -96,15 +97,29 @@ export default function Dashboard({ dateFrom, dateTo }) {
     <div>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold">Dashboard</h1>
+        <div className="flex items-center border border-dark-border rounded overflow-hidden">
+          {['$', '%', 'R'].map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setPnlMode(mode)}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                pnlMode === mode ? 'bg-blue-600 text-white' : 'text-dark-muted hover:text-white'
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Total P&L"
-          value={stats.total_pnl}
+          value={pnlMode === '%' ? stats.total_pnl_pct : pnlMode === 'R' ? stats.total_r : stats.total_pnl}
           icon={DollarSign}
-          prefix="$"
+          prefix={pnlMode === '$' ? '$' : ''}
+          suffix={pnlMode === '%' ? '%' : pnlMode === 'R' ? 'R' : ''}
         />
         <StatCard
           label="Win Rate"
@@ -131,30 +146,34 @@ export default function Dashboard({ dateFrom, dateTo }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Average Win"
-          value={stats.avg_win}
+          value={pnlMode === '%' ? stats.avg_win_pct : pnlMode === 'R' ? stats.avg_win_r : stats.avg_win}
           icon={ArrowUpRight}
-          prefix="$"
+          prefix={pnlMode === '$' ? '$' : ''}
+          suffix={pnlMode === '%' ? '%' : pnlMode === 'R' ? 'R' : ''}
           color="text-profit"
         />
         <StatCard
           label="Average Loss"
-          value={stats.avg_loss}
+          value={pnlMode === '%' ? stats.avg_loss_pct : pnlMode === 'R' ? stats.avg_loss_r : stats.avg_loss}
           icon={ArrowDownRight}
-          prefix="$"
+          prefix={pnlMode === '$' ? '$' : ''}
+          suffix={pnlMode === '%' ? '%' : pnlMode === 'R' ? 'R' : ''}
           color="text-loss"
         />
         <StatCard
           label="Best Trade"
-          value={stats.best_trade}
+          value={pnlMode === '%' ? stats.best_trade_pct : pnlMode === 'R' ? stats.best_trade_r : stats.best_trade}
           icon={TrendingUp}
-          prefix="$"
+          prefix={pnlMode === '$' ? '$' : ''}
+          suffix={pnlMode === '%' ? '%' : pnlMode === 'R' ? 'R' : ''}
           color="text-profit"
         />
         <StatCard
           label="Worst Trade"
-          value={stats.worst_trade}
+          value={pnlMode === '%' ? stats.worst_trade_pct : pnlMode === 'R' ? stats.worst_trade_r : stats.worst_trade}
           icon={TrendingDown}
-          prefix="$"
+          prefix={pnlMode === '$' ? '$' : ''}
+          suffix={pnlMode === '%' ? '%' : pnlMode === 'R' ? 'R' : ''}
           color="text-loss"
         />
       </div>
