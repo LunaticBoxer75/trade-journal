@@ -1,0 +1,1 @@
+# TradeJournal Backend App
