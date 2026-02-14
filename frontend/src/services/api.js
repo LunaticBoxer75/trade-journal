@@ -88,6 +88,12 @@ export const splitTradeGroup = (groupId, tradeIds) =>
 export const getTradeChartData = (groupId, interval = '1d') =>
   fetchJSON(`/trades/groups/${groupId}/chart?interval=${interval}`);
 
+export const updateTradeDateTime = (tradeId, tradeDate) =>
+  fetchJSON(`/trades/executions/${tradeId}/datetime`, {
+    method: 'PUT',
+    body: JSON.stringify({ trade_date: tradeDate }),
+  });
+
 export const getUniqueTickers = () =>
   fetchJSON('/trades/tickers');
 

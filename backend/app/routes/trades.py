@@ -224,6 +224,48 @@ def delete_trade_group(group_id: str, db: Session = Depends(get_db)):
     return {"message": "Trade group deleted"}
 
 
+@router.put("/executions/{trade_id}")
+def update_trade_execution(trade_id: int, db: Session = Depends(get_db)):
+    """Update an individual trade execution's date/time."""
+    import json
+    from starlette.requests import Request
+    trade = db.query(Trade).filter(Trade.id == trade_id).first()
+    if not trade:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    return trade
+
+
+@router.put("/executions/{trade_id}/datetime")
+def update_trade_datetime(
+    trade_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+):
+    """Update the trade_date of an individual execution."""
+    trade = db.query(Trade).filter(Trade.id == trade_id).first()
+    if not trade:
+        raise HTTPException(status_code=404, detail="Trade not found")
+
+    new_date_str = body.get("trade_date")
+    if not new_date_str:
+        raise HTTPException(status_code=400, detail="trade_date is required")
+
+    try:
+        new_date = datetime.fromisoformat(new_date_str)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use ISO format: YYYY-MM-DDTHH:MM:SS")
+
+    trade.trade_date = new_date
+    db.commit()
+
+    # Recalculate group metrics if trade belongs to a group
+    if trade.group_id:
+        _recalculate_group_metrics(trade.group_id, db)
+        db.commit()
+
+    return {"message": "Trade date updated", "trade_id": trade_id, "trade_date": new_date.isoformat()}
+
+
 @router.get("/tickers", response_model=List[str])
 def get_unique_tickers(db: Session = Depends(get_db)):
     """Get all unique ticker symbols."""

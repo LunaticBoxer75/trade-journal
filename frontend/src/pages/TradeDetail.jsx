@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Star, Save, Trash2, Scissors, Check, X } from 'lucide-react'
 import { createChart, ColorType } from 'lightweight-charts'
-import { getTradeGroup, updateTradeGroup, deleteTradeGroup, splitTradeGroup, getTags, getSetups, getTradeChartData } from '../services/api'
+import { getTradeGroup, updateTradeGroup, deleteTradeGroup, splitTradeGroup, getTags, getSetups, getTradeChartData, updateTradeDateTime } from '../services/api'
 
 const TIMEFRAMES = [
   { label: '5m', value: '5m' },
@@ -168,6 +168,68 @@ function TradeChart({ groupId }) {
         <div ref={containerRef} />
       </div>
     </div>
+  )
+}
+
+function EditableDate({ tradeId, date, onUpdate }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  function startEdit() {
+    // Convert to datetime-local format: YYYY-MM-DDTHH:MM
+    const d = new Date(date)
+    const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+    setValue(iso)
+    setEditing(true)
+  }
+
+  async function handleSave() {
+    try {
+      setSaving(true)
+      // Convert datetime-local to ISO string
+      const isoDate = new Date(value).toISOString()
+      await updateTradeDateTime(tradeId, isoDate)
+      setEditing(false)
+      onUpdate()
+    } catch (err) {
+      console.error('Failed to update date:', err)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') handleSave()
+    if (e.key === 'Escape') setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          type="datetime-local"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleSave}
+          autoFocus
+          disabled={saving}
+          className="bg-dark-card border border-dark-border rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-blue-500"
+          step="1"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={startEdit}
+      className="text-left hover:text-blue-400 transition-colors cursor-pointer"
+      title="Click to edit date/time"
+    >
+      {date ? new Date(date).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+    </button>
   )
 }
 
@@ -445,7 +507,9 @@ export default function TradeDetail() {
                 <td className="py-2 px-3">
                   <span className={`text-xs font-medium px-2 py-1 rounded ${t.action === 'BUY' ? 'bg-profit/20 text-profit' : 'bg-loss/20 text-loss'}`}>{t.action}</span>
                 </td>
-                <td className="py-2 px-3 text-sm">{formatDate(t.trade_date)}</td>
+                <td className="py-2 px-3 text-sm">
+                  <EditableDate tradeId={t.id} date={t.trade_date} onUpdate={loadData} />
+                </td>
                 <td className="py-2 px-3 text-sm">{t.quantity}</td>
                 <td className="py-2 px-3 text-sm">{formatCurrency(t.price)}</td>
                 <td className="py-2 px-3 text-sm">{formatCurrency(t.total_amount)}</td>
