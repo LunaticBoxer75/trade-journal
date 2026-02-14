@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Search, Filter, ArrowUpDown, ExternalLink } from 'lucide-react'
 import { getTradeGroups, getUniqueTickers } from '../services/api'
 
-export default function TradeLog() {
+export default function TradeLog({ dateFrom, dateTo }) {
   const [trades, setTrades] = useState([])
   const [tickers, setTickers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -22,12 +22,15 @@ export default function TradeLog() {
 
   useEffect(() => {
     loadTrades()
-  }, [filters])
+  }, [filters, dateFrom, dateTo])
 
   async function loadTrades() {
     try {
       setLoading(true)
-      const data = await getTradeGroups(filters)
+      const params = { ...filters }
+      if (dateFrom) params.date_from = dateFrom
+      if (dateTo) params.date_to = dateTo
+      const data = await getTradeGroups(params)
       setTrades(data)
     } catch (err) {
       console.error('Failed to load trades:', err)

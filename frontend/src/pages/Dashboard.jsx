@@ -42,7 +42,7 @@ function CustomTooltip({ active, payload, label }) {
   return null
 }
 
-export default function Dashboard() {
+export default function Dashboard({ dateFrom, dateTo }) {
   const [stats, setStats] = useState(null)
   const [equityCurve, setEquityCurve] = useState([])
   const [drawdown, setDrawdown] = useState(null)
@@ -53,15 +53,15 @@ export default function Dashboard() {
     async function loadData() {
       try {
         const [statsData, curveData, ddData, dailyData] = await Promise.all([
-          getDashboardStats(),
+          getDashboardStats(dateFrom, dateTo),
           getEquityCurve(),
           getDrawdown(),
-          getDailyPnl(),
+          getDailyPnl(dateFrom, dateTo),
         ])
         setStats(statsData)
         setEquityCurve(curveData)
         setDrawdown(ddData)
-        setDailyPnl(dailyData.slice(-30)) // Last 30 days
+        setDailyPnl(dailyData.slice(-30))
       } catch (err) {
         console.error('Failed to load dashboard:', err)
       } finally {
@@ -69,7 +69,7 @@ export default function Dashboard() {
       }
     }
     loadData()
-  }, [])
+  }, [dateFrom, dateTo])
 
   if (loading) {
     return (

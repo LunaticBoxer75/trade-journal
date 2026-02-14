@@ -115,6 +115,8 @@ def get_trade_groups(
     status: Optional[str] = Query(None, description="Filter by status: OPEN or CLOSED"),
     ticker: Optional[str] = Query(None, description="Filter by ticker symbol"),
     side: Optional[str] = Query(None, description="Filter by side: LONG or SHORT"),
+    date_from: Optional[str] = Query(None, description="Filter from date (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="Filter to date (YYYY-MM-DD)"),
     sort_by: str = Query("entry_date", description="Sort field"),
     sort_dir: str = Query("desc", description="Sort direction: asc or desc"),
     limit: int = Query(50, ge=1, le=500),
@@ -134,6 +136,10 @@ def get_trade_groups(
         query = query.filter(TradeGroup.ticker == ticker.upper())
     if side:
         query = query.filter(TradeGroup.side == side.upper())
+    if date_from:
+        query = query.filter(TradeGroup.entry_date >= date_from)
+    if date_to:
+        query = query.filter(TradeGroup.entry_date <= date_to + " 23:59:59")
 
     # Apply sorting
     sort_column = getattr(TradeGroup, sort_by, TradeGroup.entry_date)

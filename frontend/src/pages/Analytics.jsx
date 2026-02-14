@@ -25,7 +25,7 @@ function CustomTooltip({ active, payload, label }) {
   return null
 }
 
-export default function Analytics() {
+export default function Analytics({ dateFrom, dateTo }) {
   const [byTicker, setByTicker] = useState([])
   const [byDay, setByDay] = useState([])
   const [bySetup, setBySetup] = useState([])

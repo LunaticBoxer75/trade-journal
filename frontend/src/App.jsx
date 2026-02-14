@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -34,8 +35,68 @@ const navItems = [
   { path: '/settings', icon: Settings, label: 'Settings' },
 ]
 
+const DATE_PRESETS = [
+  { label: 'All Time', value: 'all' },
+  { label: 'Today', value: 'today' },
+  { label: 'This Week', value: 'week' },
+  { label: 'This Month', value: 'month' },
+  { label: 'Last 30 Days', value: '30d' },
+  { label: 'Last 90 Days', value: '90d' },
+  { label: 'This Year', value: 'year' },
+  { label: 'Custom', value: 'custom' },
+]
+
+function getPresetDates(preset) {
+  const now = new Date()
+  const today = now.toISOString().slice(0, 10)
+
+  switch (preset) {
+    case 'today':
+      return { dateFrom: today, dateTo: today }
+    case 'week': {
+      const d = new Date(now)
+      d.setDate(d.getDate() - d.getDay()) // Sunday
+      return { dateFrom: d.toISOString().slice(0, 10), dateTo: today }
+    }
+    case 'month': {
+      const d = new Date(now.getFullYear(), now.getMonth(), 1)
+      return { dateFrom: d.toISOString().slice(0, 10), dateTo: today }
+    }
+    case '30d': {
+      const d = new Date(now)
+      d.setDate(d.getDate() - 30)
+      return { dateFrom: d.toISOString().slice(0, 10), dateTo: today }
+    }
+    case '90d': {
+      const d = new Date(now)
+      d.setDate(d.getDate() - 90)
+      return { dateFrom: d.toISOString().slice(0, 10), dateTo: today }
+    }
+    case 'year': {
+      return { dateFrom: `${now.getFullYear()}-01-01`, dateTo: today }
+    }
+    default:
+      return { dateFrom: '', dateTo: '' }
+  }
+}
+
 export default function App() {
   const location = useLocation()
+  const [datePreset, setDatePreset] = useState('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
+  function handlePresetChange(preset) {
+    setDatePreset(preset)
+    if (preset !== 'custom') {
+      const { dateFrom: df, dateTo: dt } = getPresetDates(preset)
+      setDateFrom(df)
+      setDateTo(dt)
+    }
+  }
+
+  // Pages that should show the date filter
+  const showDateFilter = ['/', '/trades', '/analytics', '/calendar'].includes(location.pathname)
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -80,13 +141,59 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
+        {/* Global Date Filter Bar */}
+        {showDateFilter && (
+          <div className="sticky top-0 z-20 bg-dark-bg border-b border-dark-border px-8 py-3">
+            <div className="flex items-center gap-3">
+              <Calendar size={16} className="text-dark-muted" />
+              <div className="flex items-center gap-1">
+                {DATE_PRESETS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => handlePresetChange(p.value)}
+                    className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                      datePreset === p.value
+                        ? 'bg-blue-600 text-white'
+                        : 'text-dark-muted hover:text-white hover:bg-dark-border/50'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              {datePreset === 'custom' && (
+                <div className="flex items-center gap-2 ml-2">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="bg-dark-card border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500"
+                  />
+                  <span className="text-dark-muted text-xs">to</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="bg-dark-card border border-dark-border rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
+              {dateFrom && (
+                <span className="text-xs text-dark-muted ml-2">
+                  {dateFrom} → {dateTo || 'now'}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="p-8">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/trades" element={<TradeLog />} />
+            <Route path="/" element={<Dashboard dateFrom={dateFrom} dateTo={dateTo} />} />
+            <Route path="/trades" element={<TradeLog dateFrom={dateFrom} dateTo={dateTo} />} />
             <Route path="/trades/:groupId" element={<TradeDetail />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/calendar" element={<CalendarView />} />
+            <Route path="/analytics" element={<Analytics dateFrom={dateFrom} dateTo={dateTo} />} />
+            <Route path="/calendar" element={<CalendarView dateFrom={dateFrom} dateTo={dateTo} />} />
             <Route path="/journal" element={<Journal />} />
             <Route path="/playbook" element={<Playbook />} />
             <Route path="/tags" element={<TagsPage />} />
