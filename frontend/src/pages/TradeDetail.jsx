@@ -39,7 +39,7 @@ function TradingViewChart({ ticker }) {
   }, [ticker])
 
   return (
-    <div className="tradingview-widget-container" ref={containerRef} style={{ height: '600px', width: '100%' }}>
+    <div className="tradingview-widget-container" ref={containerRef} style={{ height: 'calc(100vh - 180px)', minHeight: '500px', width: '100%' }}>
       <div className="tradingview-widget-container__widget" style={{ height: '100%', width: '100%' }}></div>
     </div>
   )
