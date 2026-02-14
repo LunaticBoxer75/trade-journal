@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Star, Save, Trash2, Scissors, Check, X } from 'lucide-react'
-import { createChart, ColorType } from 'lightweight-charts'
+import { createChart, ColorType, CandlestickSeries, HistogramSeries } from 'lightweight-charts'
 import { getTradeGroup, updateTradeGroup, deleteTradeGroup, splitTradeGroup, getTags, getSetups, getTradeChartData } from '../services/api'
 
 function TradeChart({ groupId }) {
@@ -59,8 +59,8 @@ function TradeChart({ groupId }) {
 
         chartRef.current = chart
 
-        // Candlestick series
-        const candleSeries = chart.addCandlestickSeries({
+        // Candlestick series (v5 API)
+        const candleSeries = chart.addSeries(CandlestickSeries, {
           upColor: '#22c55e',
           downColor: '#ef4444',
           borderUpColor: '#22c55e',
@@ -71,11 +71,11 @@ function TradeChart({ groupId }) {
 
         candleSeries.setData(data.candles)
 
-        // Volume series
-        const volumeSeries = chart.addHistogramSeries({
+        // Volume series (v5 API)
+        const volumeSeries = chart.addSeries(HistogramSeries, {
           color: '#4b5563',
           priceFormat: { type: 'volume' },
-          priceScaleId: '',
+          priceScaleId: 'volume',
         })
 
         volumeSeries.priceScale().applyOptions({
